@@ -2,7 +2,10 @@
 
     python scripts/build.py [--month 2026-12] [--out _site]
 
-- Playlist = months/<month>.txt (default: this month, UTC; falls back to the newest older month, or to own.txt only).
+- Playlist = months/<month>.txt (default: this month, UTC; falls back to the newest older month, or to own.txt only)
+  + your own songs from own.txt, spread evenly through the mix: all songs tagged for this month, all songs added this
+  month (column 'added'), and if that is fewer than own_songs (seasons.json) some all-year songs (a different set each month).
+  Runs on every push, so a song you add mid-month is in the playlist a few minutes later (the world re-reads it every 5 min).
 - Every song is downloaded once (cache in .cache/), loudness-matched (-14 LUFS, peaks -1.5 dB), converted to
   Ogg Vorbis 44.1 kHz -> tracks/<id>.ogg; cover -> covers/<id>.jpg 512x512 (missing cover -> one is drawn).
 - The previous month's files stay online too, so people who are in the world at midnight on the 1st keep listening.
@@ -14,6 +17,7 @@ import datetime as dt
 import glob
 import hashlib
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -127,6 +131,19 @@ def make_cover(song, cache, out_dir, theme):
     draw_cover(song, dest, theme)
 
 
+def own_for(month, n_min):
+    mm = month[5:7]
+    own = C.own_songs()
+    tagged = [o for o in own if mm in o["months"]]
+    new = [o for o in own if o["added"][:7] == month and o not in tagged and (not o["months"] or mm in o["months"])]
+    allyear = [o for o in own if not o["months"] and o not in new]
+    allyear.sort(key=lambda o: hashlib.sha1((month + o["id"]).encode()).hexdigest())   # a different set each month, stable within it
+    chosen = tagged + new
+    chosen += allyear[: max(0, n_min - len(chosen))]
+    return [{"id": o["id"], "title": o["title"], "artist": o["artist"], "length": "", "licence": o["licence"],
+             "page": "own", "audio": o["audio"], "cover": o["cover"]} for o in chosen]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--month", default=os.environ.get("MONTH") or dt.datetime.utcnow().strftime("%Y-%m"))
@@ -143,7 +160,12 @@ def main():
     cur = month_file(args.month)
     if cur:
         songs, title = C.read_manifest(f"months/{cur}.txt")
-        print(f"== playlist {cur}: {title} ({len(songs)} songs)")
+        have = {s["id"] for s in songs}
+        own = [o for o in own_for(args.month, C.load_json("seasons.json").get("own_songs", 5)) if o["id"] not in have]
+        for i, o in enumerate(own):     # spread evenly through the mix
+            pos = round((i + 0.5) * (len(songs) + len(own)) / len(own))
+            songs.insert(min(pos, len(songs)), o)
+        print(f"== playlist {cur}: {title} ({len(songs) - len(own)} found + {len(own)} own songs)")
     else:   # no monthly playlist yet -> only the own songs
         songs = [{"id": o["id"], "title": o["title"], "artist": o["artist"], "length": "", "licence": o["licence"],
                   "page": "own", "audio": o["audio"], "cover": o["cover"]} for o in C.own_songs()]

@@ -6,20 +6,20 @@
   "max_seconds": 420,
   "max_per_artist": 3,
   "skip_recent_months": 3,
-  "general": ["acoustic guitar", "folk", "campfire", "chill", "piano", "lofi", "ambient", "indie", "jazz", "world music", "celtic", "bluegrass", "singer songwriter", "instrumental"],
-  "exclude_words": ["sermon", "podcast", "episode", "interview", "lecture", "church service", "audiobook", "chapter", "radio show", "sound effect", "sfx", "ringtone", "karaoke", "soundtrack", "pronunciation", "spoken", "reading", "speech", "news", "test tone", "sample pack", "loop pack", "midi", "commercial"],
+  "general": ["acoustic guitar", "folk", "campfire", "chill", "piano", "lofi", "indie", "jazz", "world music", "celtic", "bluegrass", "singer songwriter", "instrumental", "swing", "waltz", "blues"],
+  "exclude_words": ["sermon", "podcast", "episode", "interview", "lecture", "church service", "audiobook", "chapter", "radio show", "sound effect", "sfx", "ringtone", "karaoke", "soundtrack", "pronunciation", "spoken", "reading", "speech", "news", "test tone", "sample pack", "loop pack", "midi", "commercial", "remarks", "proclamation", "ceremony", "address", "president", "dpla", "field recording", "ambience", "ambient sound", "rain", "thunder", "storm", "wind", "birds", "birdsong", "nature sound", "footsteps", "noise", "harsh", "drone", "glitch", "industrial", "experimental", "freesound"],
   "months": {
     "01": {"name": "Winter Fireside", "share": 0.4, "seasonal": ["winter", "snow", "cozy", "fireside", "frost", "new year"]},
     "02": {"name": "Cozy Hearts", "share": 0.4, "seasonal": ["love song", "romantic", "winter", "valentine", "cozy"]},
     "03": {"name": "First Spring", "share": 0.4, "seasonal": ["spring", "morning", "birds", "celtic", "st patrick", "irish"]},
-    "04": {"name": "April Showers", "share": 0.35, "seasonal": ["spring", "rain", "easter", "blossom", "gentle"]},
+    "04": {"name": "April Showers", "share": 0.35, "seasonal": ["spring", "april", "easter", "blossom", "gentle"]},
     "05": {"name": "May Blossom", "share": 0.35, "seasonal": ["spring", "flowers", "sunny", "dance", "garden"]},
     "06": {"name": "Midsummer", "share": 0.4, "seasonal": ["summer", "midsummer", "sunshine", "beach", "festival"]},
     "07": {"name": "Summer Nights", "share": 0.4, "seasonal": ["summer", "beach", "tropical", "surf", "night"]},
     "08": {"name": "Late Summer", "share": 0.35, "seasonal": ["summer", "road trip", "sunset", "reggae", "latin"]},
     "09": {"name": "Harvest", "share": 0.35, "seasonal": ["autumn", "harvest", "folk", "country", "fall"]},
     "10": {"name": "Spooky Season", "share": 0.6, "seasonal": ["halloween", "spooky", "ghost", "haunted", "witch", "creepy", "dark ambient", "mystery"]},
-    "11": {"name": "Autumn Embers", "share": 0.4, "seasonal": ["autumn", "fall", "rain", "melancholy", "cozy", "thanksgiving"]},
+    "11": {"name": "Autumn Embers", "share": 0.4, "seasonal": ["autumn", "fall", "autumn leaves", "melancholy", "cozy", "harvest", "thanksgiving song"]},
     "12": {"name": "Christmas by the Fire", "share": 0.7, "seasonal": ["christmas", "xmas", "carol", "jingle bells", "silent night", "noel", "holiday", "winter", "santa", "sleigh"]}
   }
 }

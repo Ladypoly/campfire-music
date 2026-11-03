@@ -8,12 +8,15 @@ Looks for CC0 / public-domain MUSIC (no sound effects, talks, podcasts) in
   - Internet Archive   (only the curated 'netlabels' and 'musopen' collections - open uploads are often mislabelled)
 plus your own hand picks in picks/YYYY-MM.txt (same line format as the manifest, they always go in first).
 The month's theme comes from seasons.json (e.g. December: christmas, carol, jingle bells ...).
-Then it adds your own songs from own.txt (songs tagged for this month first, then the ones played least).
+Your own songs are NOT picked here: build.py adds them every time it publishes (so songs you add during the month
+go straight into the running playlist).
 
 Writes months/YYYY-MM.txt (the playlist manifest, edit it in the pull request) and months/YYYY-MM.md (overview).
 """
 import argparse
+import concurrent.futures as cf
 import datetime as dt
+import threading
 import glob
 import hashlib
 import math
@@ -26,16 +29,43 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
 
+sys.stdout.reconfigure(line_buffering=True)   # live log lines in GitHub Actions
+
 LIC_OK = {"cc0": "CC0", "pdm": "Public Domain"}
+# Wikimedia Commons is full of field recordings and speeches: a file only counts when its categories say "music"
+MUSIC_CATS = re.compile(r"music|song|band|orchestra|choir|chorus|carol|hymn|piano|guitar|violin|jazz|folk|blues|march|waltz|"
+                        r"polka|symphon|concerto|sonata|quartet|ensemble|singer|vocal|instrumental|ragtime|lullab", re.I)
+
+
+def nice_title(t):
+    """'09-that_new_traffic_light' -> 'That new traffic light'"""
+    t = re.sub(r"\.(mp3|ogg|wav|flac)$", "", t or "", flags=re.I)
+    t = re.sub(r"^[\s\d._-]+(?=[^\d])", "", t).replace("_", " ").strip(" -.")
+    return (t[:1].upper() + t[1:]) if t else ""
+
+
+def looks_like_code(t):
+    """file-name junk such as '01TPSG7132019Wintera1' or 'hr067 duo de saxos 03'"""
+    return (bool(re.search(r"\d{4,}", t)) or (" " not in t and bool(re.search(r"\d", t))) or len(t) < 3
+            or bool(re.search(r"\b[a-zA-Z]{1,4}\d+[a-zA-Z0-9]*\b", t)))
+OPENVERSE = {"off": False, "lock": threading.Lock()}   # anonymous Openverse: one request at a time, stop on 429
 
 
 # ---------------------------------------------------------------- sources
 def from_openverse(term, seasonal):
     out = []
-    for page in (1, 2):
+    for page in (1,):
+        if OPENVERSE["off"]:
+            break
         try:
-            r = C.http_get("https://api.openverse.org/v1/audio/", {
-                "q": term, "license": "cc0,pdm", "category": "music", "page_size": 20, "page": page, "mature": "false"})
+            with OPENVERSE["lock"]:
+                r = C.http_get("https://api.openverse.org/v1/audio/", {
+                    "q": term, "license": "cc0,pdm", "category": "music", "page_size": 20, "page": page, "mature": "false"})
+                time.sleep(1.0)
+        except C.RateLimited:
+            print("  openverse: rate limit reached - no more Openverse searches this run")
+            OPENVERSE["off"] = True
+            break
         except Exception as e:
             print(f"  openverse '{term}': {e}")
             break
@@ -48,9 +78,6 @@ def from_openverse(term, seasonal):
                         "page": x.get("foreign_landing_url") or "", "audio": x["url"], "cover": x.get("thumbnail") or "",
                         "tags": " ".join(t.get("name", "") for t in (x.get("tags") or [])),
                         "source": "openverse/" + (x.get("source") or "?"), "seasonal": seasonal, "pop": 0})
-        if r.get("page_count", 1) <= page:
-            break
-        time.sleep(1.5)          # anonymous API: stay well under the rate limit
     return out
 
 
@@ -61,7 +88,7 @@ def from_commons(term, seasonal):
             "action": "query", "format": "json", "generator": "search", "gsrnamespace": 6,
             "gsrsearch": f"{term} filetype:audio", "gsrlimit": 40, "prop": "imageinfo",
             "iiprop": "url|size|mime|extmetadata",
-            "iiextmetadatafilter": "LicenseShortName|Artist|ObjectName|ImageDescription"})
+            "iiextmetadatafilter": "LicenseShortName|Artist|ObjectName|ImageDescription|Categories"})
     except Exception as e:
         print(f"  commons '{term}': {e}")
         return out
@@ -78,13 +105,16 @@ def from_commons(term, seasonal):
             licence = "Public Domain"
         else:
             continue
+        cats = C.clean(meta.get("Categories", {}).get("value", ""))
+        if not MUSIC_CATS.search(cats):
+            continue
         name = re.sub(r"^File:", "", p.get("title", ""))
         title = C.clean(meta.get("ObjectName", {}).get("value", "")) or re.sub(r"\.\w+$", "", name)
         artist = C.clean(meta.get("Artist", {}).get("value", "")) or "unknown"
         out.append({"title": title, "artist": artist[:60], "secs": float(info.get("duration") or 0), "licence": licence,
                     "page": info.get("descriptionurl") or "https://commons.wikimedia.org/wiki/" + p.get("title", "").replace(" ", "_"),
                     "audio": info.get("url", ""), "cover": "",
-                    "tags": C.clean(meta.get("ImageDescription", {}).get("value", ""))[:300],
+                    "tags": (cats + " " + C.clean(meta.get("ImageDescription", {}).get("value", "")))[:400],
                     "source": "wikimedia", "seasonal": seasonal, "pop": 0})
     return out
 
@@ -95,18 +125,25 @@ def from_archive(term, seasonal, rng):
          f'AND (subject:("{term}") OR title:("{term}"))')
     try:
         r = C.http_get("https://archive.org/advancedsearch.php", {
-            "q": q, "fl[]": ["identifier", "title", "creator", "downloads", "licenseurl"],
-            "sort[]": "downloads desc", "rows": 15, "output": "json"})
+            "q": q, "fl[]": ["identifier", "title", "creator", "downloads", "licenseurl", "subject"],
+            "sort[]": "downloads desc", "rows": 8, "output": "json"})
     except Exception as e:
         print(f"  archive '{term}': {e}")
         return out
-    for doc in r.get("response", {}).get("docs", []):
+    docs = r.get("response", {}).get("docs", [])
+
+    def meta_of(doc):
+        try:
+            return C.http_get(f"https://archive.org/metadata/{doc['identifier']}")
+        except Exception as e:
+            print(f"  archive item {doc['identifier']}: {e}")
+            return None
+    with cf.ThreadPoolExecutor(4) as ex:
+        metas = list(ex.map(meta_of, docs))
+    for doc, meta in zip(docs, metas):
         ident = doc["identifier"]
         licence = "CC0" if "zero" in str(doc.get("licenseurl", "")) else "Public Domain"
-        try:
-            meta = C.http_get(f"https://archive.org/metadata/{ident}")
-        except Exception as e:
-            print(f"  archive item {ident}: {e}")
+        if not meta:
             continue
         files = [f for f in meta.get("files", []) if "MP3" in f.get("format", "") or f.get("format") == "Ogg Vorbis"]
         files = [f for f in files if f.get("format") in ("VBR MP3", "128Kbps MP3", "MP3", "Ogg Vorbis")]
@@ -118,10 +155,13 @@ def from_archive(term, seasonal, rng):
         creator = doc.get("creator") or f.get("artist") or f.get("creator") or "unknown"
         if isinstance(creator, list):
             creator = ", ".join(creator)
+        subj = doc.get("subject") or ""
+        if isinstance(subj, list):
+            subj = " ".join(subj)
         out.append({"title": f.get("title") or re.sub(r"\.\w+$", "", f["name"]), "artist": creator, "secs": secs,
                     "licence": licence, "page": f"https://archive.org/details/{ident}",
                     "audio": f"https://archive.org/download/{ident}/" + C.urllib.parse.quote(f["name"]),
-                    "cover": f"https://archive.org/services/img/{ident}", "tags": doc.get("title", ""),
+                    "cover": f"https://archive.org/services/img/{ident}", "tags": f"{doc.get('title', '')} {subj}",
                     "source": "archive.org", "seasonal": seasonal, "pop": int(doc.get("downloads") or 0)})
     return out
 
@@ -165,17 +205,23 @@ def main():
     srcs = args.sources.split(",")
     print(f"== {month}: {mcfg['name']} (theme share {mcfg['share']:.0%})")
 
-    def gather(terms, seasonal):
+    def search(t, seasonal):
         found = []
-        for t in terms:
-            print(f"- searching '{t}'")
-            if "commons" in srcs: found += from_commons(t, seasonal)
-            if "openverse" in srcs: found += from_openverse(t, seasonal)
-            if "archive" in srcs: found += from_archive(t, seasonal, rng)
+        if "commons" in srcs: found += from_commons(t, seasonal)
+        if "openverse" in srcs: found += from_openverse(t, seasonal)
+        if "archive" in srcs: found += from_archive(t, seasonal, random.Random(month + t))
+        print(f"- '{t}': {len(found)} candidates")
         return found
 
+    def gather(terms, seasonal):          # a few search words in parallel (each source stays polite)
+        with cf.ThreadPoolExecutor(4) as ex:
+            return [c for part in ex.map(lambda t: search(t, seasonal), terms) for c in part]
+
     def ok(c):
-        text = f"{c['title']} {c['tags']}".lower()
+        c["title"] = nice_title(c["title"])
+        if looks_like_code(c["title"]):
+            return False
+        text = f"{c['title']} {c['artist']} {c['tags']}".lower()
         if any(w in text for w in excl):
             return False
         if c["secs"] and not (lo <= c["secs"] <= hi):
@@ -216,23 +262,12 @@ def main():
         take(c)
     rng.shuffle(picked)
 
-    # own songs: tagged for this month first, then the ones played least
-    usage = own_usage()
-    own = C.own_songs()
-    own.sort(key=lambda o: (0 if month[5:7] in o["months"] else (2 if o["months"] else 1), usage.get(o["id"], 0), rng.random()))
-    own = own[: cfg["own_songs"]]
-
     songs = []
     for c in picked:
         h = hashlib.sha1(c["audio"].encode()).hexdigest()[:6]
         c["id"] = f"{C.slug(c['title'], 30)}-{h}"
         songs.append({"id": c["id"], "title": c["title"], "artist": c["artist"], "length": C.mmss(c["secs"]) if c["secs"] else "",
                       "licence": c["licence"], "page": c["page"], "audio": c["audio"], "cover": c["cover"]})
-    # spread the own songs evenly through the mix
-    for i, o in enumerate(own):
-        pos = round((i + 0.5) * (len(songs) + len(own)) / max(1, len(own)))
-        songs.insert(min(pos, len(songs)), {"id": o["id"], "title": o["title"], "artist": o["artist"], "length": "",
-                                            "licence": o["licence"], "page": "own", "audio": o["audio"], "cover": o["cover"]})
 
     title = f"{mcfg['name']} {dt.date(int(month[:4]), int(month[5:]), 1):%B %Y}"
     os.makedirs(C.path("months"), exist_ok=True)
@@ -242,14 +277,15 @@ def main():
     # overview for the pull request
     src_of = {c["id"]: c for c in picked}
     lines = [f"## Campfire Radio - {title}", "",
-             f"{len(picked)} found songs ({sum(1 for c in picked if c.get('seasonal'))} matching the theme) + {len(own)} own songs.",
+             f"{len(picked)} found songs ({sum(1 for c in picked if c.get('seasonal'))} matching the theme).",
+             "Your own songs (own.txt) are mixed in automatically when the site is published - also the ones you add during the month.",
              f"Candidates: {len(seasonal)} theme / {len(general)} general after filtering.", "",
              "Listen through the links, then **delete lines you don't like** in `months/" + month + ".txt` (or add your own to `picks/" + month + ".txt` and re-run).",
              "Merging this pull request publishes the playlist on the 1st of the month.", "",
              "| # | Song | Artist | Licence | Length | Source | Theme |", "|---|---|---|---|---|---|---|"]
     for i, s in enumerate(songs, 1):
         c = src_of.get(s["id"], {})
-        src = "own" if s["page"] == "own" else f"[{c.get('source', 'link')}]({s['page'] or s['audio']})"
+        src = f"[{c.get('source', 'link')}]({s['page'] or s['audio']})"
         lines.append(f"| {i} | {C.clean(s['title'])} | {C.clean(s['artist'])} | {s['licence']} | {s['length'] or '?'} | {src} | {'yes' if c.get('seasonal') else ''} |")
     if len(picked) < n_total:
         lines += ["", f"**Only {len(picked)} of {n_total} found** - add hand picks in `picks/{month}.txt` or more search words in `seasons.json`."]

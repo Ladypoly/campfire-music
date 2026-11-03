@@ -1,0 +1,11 @@
+Songs hier hineinlegen und import-songs.bat (im Ordner campfire-music) doppelklicken.
+
+- Dateiname = Songtitel, oder "Kuenstler - Titel" (z. B. "vince_crusty - Snowy Campfire.mp3")
+- Cover (optional): Bild mit gleichem Namen daneben (Snowy Campfire.jpg oder .png)
+- Monat: Dateien in einen Unterordner mit der Monatszahl legen: import\12\  oder  import\10,11\
+  Ohne Unterordner = ganzjaehrig.
+- Standard-Kuenstler und Lizenz: import\settings.txt (wird beim ersten Start angelegt)
+- mp3 bevorzugt (WAV wird sehr gross; GitHub erlaubt max. 100 MB pro Datei)
+
+Das Skript verschiebt die Dateien nach tracks\ und covers\, traegt sie in own.txt ein
+und kann danach alles zu GitHub hochladen.

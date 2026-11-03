@@ -1,3 +1,5 @@
 _site/
 .cache/
 __pycache__/
+import/*
+!import/LIESMICH.txt

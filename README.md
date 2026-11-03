@@ -40,6 +40,10 @@ Nothing is merged without you: automatically found songs can be odd, and no sour
 
 ## Add one of your own songs
 
+**Easiest (Windows):** put the files into `import/` (sub folder `12/` = December, `10,11/` = Oct + Nov), double-click `import-songs.bat`. It moves them to `tracks/` + `covers/`, adds the lines to `own.txt` and can push to GitHub. File name = title or "Artist - Title"; a picture with the same name = cover. See `import/LIESMICH.txt`.
+
+By hand:
+
 1. `tracks/<id>.mp3` (or .ogg / .wav) and `covers/<id>.jpg` - id lower case, no spaces
 2. A line in `own.txt`: `my-song | My Song | vince_crusty | 12 | Own (Suno)` (`12` = prefer it in December; empty = all year)
 3. Commit - it goes into the next playlists (loudness + format are handled by the build)

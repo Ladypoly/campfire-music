@@ -1,7 +1,8 @@
-# Your own (AI) songs. Audio in tracks/<id>.ogg|mp3|wav, cover in covers/<id>.jpg (optional).
-# id | title | artist | months (e.g. 12 or 10,11 - empty = all year) | licence
-# 5 of them go into every monthly playlist: songs tagged for the month first, then the ones played least.
-when-the-world-ends | When the World Ends | vince_crusty | | Own (Suno)
-midsummer-stone-spiral | Midsummer Stone Spiral | vince_crusty | | Own (Suno)
-drop-it-now | Drop it Now | vince_crusty | | Own (Suno)
-meet-me-by-the-fire | Meet Me by the Fire | vince_crusty |  | Own (Suno)
+# Your own (AI) songs. Audio in tracks/<id>.ogg|mp3|wav, cover in covers/<id>.jpg (optional). Easiest: import-songs.bat
+# id | title | artist | months (e.g. 12 or 10,11 - empty = all year) | licence | added (YYYY-MM-DD)
+# Every published playlist gets: all songs tagged for the month + all songs added this month,
+# topped up to 5 with all-year songs (a different set each month). New songs go live a few minutes after the push.
+when-the-world-ends | When the World Ends | vince_crusty |  | Own (Suno)
+midsummer-stone-spiral | Midsummer Stone Spiral | vince_crusty |  | Own (Suno)
+drop-it-now | Drop it Now | vince_crusty |  | Own (Suno)
+meet-me-by-the-fire | Meet Me by the Fire | vince_crusty |  | Own (Suno) | 2026-11-03

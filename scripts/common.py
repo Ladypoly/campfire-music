@@ -12,6 +12,7 @@ import os
 import re
 import time
 import unicodedata
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -84,7 +85,11 @@ def write_manifest(rel, songs, title, header_lines=()):
             f.write(" | ".join(clean(s.get(k, "")) for k in FIELDS) + "\n")
 
 
-def http_get(url, params=None, as_json=True, timeout=60, tries=3):
+class RateLimited(Exception):
+    pass
+
+
+def http_get(url, params=None, as_json=True, timeout=25, tries=2):
     if params:
         url = url + ("&" if "?" in url else "?") + urllib.parse.urlencode(params, doseq=True)
     last = None
@@ -94,9 +99,14 @@ def http_get(url, params=None, as_json=True, timeout=60, tries=3):
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 data = r.read()
             return json.loads(data) if as_json else data
-        except Exception as e:  # network hiccup / rate limit -> wait and retry
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                raise RateLimited(url)           # the caller stops asking this service
             last = e
-            time.sleep(3 * (attempt + 1))
+            time.sleep(2 * (attempt + 1))
+        except Exception as e:  # network hiccup -> wait and retry
+            last = e
+            time.sleep(2 * (attempt + 1))
     raise RuntimeError(f"GET failed: {url}: {last}")
 
 
@@ -109,7 +119,7 @@ def download(url, dest, timeout=180):
 
 
 def own_songs():
-    """own.txt: id | title | artist | months (e.g. 12 or 10,11; empty = all year) | licence"""
+    """own.txt: id | title | artist | months (e.g. 12 or 10,11; empty = all year) | licence | added (YYYY-MM-DD)"""
     out = []
     p = path("own.txt")
     if not os.path.exists(p):
@@ -119,7 +129,7 @@ def own_songs():
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            c = [x.strip() for x in line.split("|")] + [""] * 5
+            c = [x.strip() for x in line.split("|")] + [""] * 6
             sid = c[0]
             audio = next((f"tracks/{sid}.{ext}" for ext in ("ogg", "mp3", "wav", "flac", "m4a") if os.path.exists(path("tracks", f"{sid}.{ext}"))), "")
             if not audio:
@@ -128,5 +138,5 @@ def own_songs():
             cover = next((f"covers/{sid}.{ext}" for ext in ("jpg", "jpeg", "png") if os.path.exists(path("covers", f"{sid}.{ext}"))), "")
             months = [m.strip().zfill(2) for m in c[3].split(",") if m.strip()]
             out.append({"id": sid, "title": c[1] or sid, "artist": c[2] or "Campfire", "months": months,
-                        "licence": c[4] or "Own (AI)", "audio": audio, "cover": cover})
+                        "licence": c[4] or "Own (AI)", "added": c[5], "audio": audio, "cover": cover})
     return out
