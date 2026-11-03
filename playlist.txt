@@ -1,0 +1,6 @@
+# Campfire Radio playlist - one song per line:   id | title | artist | length (m:ss) | licence
+# id = file name without extension: tracks/<id>.ogg and covers/<id>.jpg
+# Lines starting with # are ignored (put a # in front of a song to switch it off).
+when-the-world-ends | When the World Ends | vince_crusty | 3:32 | Own (Suno)
+midsummer-stone-spiral | Midsummer Stone Spiral | vince_crusty | 3:15 | Own (Suno)
+drop-it-now | Drop it Now | vince_crusty | 3:13 | Own (Suno)
