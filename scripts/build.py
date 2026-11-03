@@ -7,7 +7,8 @@
   month (column 'added'), and if that is fewer than own_songs (seasons.json) some all-year songs (a different set each month).
   Runs on every push, so a song you add mid-month is in the playlist a few minutes later (the world re-reads it every 5 min).
 - Every song is downloaded once (cache in .cache/), loudness-matched (-14 LUFS, peaks -1.5 dB), converted to
-  Ogg Vorbis 44.1 kHz -> tracks/<id>.ogg; cover -> covers/<id>.jpg 512x512 (missing cover -> one is drawn).
+  Ogg Vorbis 44.1 kHz -> tracks/<id>.ogg (older world builds) and a streaming MP4 (AAC) -> tracks/<id>.mp4 (the world's
+  VideoPlayer); cover -> covers/<id>.jpg 512x512 (missing cover -> one is drawn).
 - The previous month's files stay online too, so people who are in the world at midnight on the 1st keep listening.
 - Writes playlist.txt (what the jukebox reads: id | title | artist | m:ss | licence) and CREDITS.md.
 A song that can't be downloaded / converted is skipped (logged), the rest still goes out.
@@ -83,6 +84,17 @@ def make_audio(song, cache, out_dir):
     USED.add(os.path.abspath(cached))
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     shutil.copyfile(cached, dest)
+    # streaming copy for the world's VideoPlayer (2026-11-03): tiny black H.264 baseline video + AAC 48 kHz, faststart
+    # (the moov atom first, so playback and seeking start before the file is complete). No whole-song decode in the world.
+    cached_mp4 = os.path.join(cache, "mp4", key + ".mp4")
+    if not os.path.exists(cached_mp4):
+        os.makedirs(os.path.dirname(cached_mp4), exist_ok=True)
+        run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=256x144:r=10", "-i", cached,
+             "-map", "0:v", "-map", "1:a", "-shortest", "-c:v", "libx264", "-profile:v", "baseline", "-level", "3.0",
+             "-pix_fmt", "yuv420p", "-tune", "stillimage", "-crf", "45", "-g", "100",
+             "-c:a", "aac", "-b:a", "144k", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", cached_mp4])
+    USED.add(os.path.abspath(cached_mp4))
+    shutil.copyfile(cached_mp4, os.path.join(out_dir, "tracks", song["id"] + ".mp4"))
     return duration(dest)
 
 
