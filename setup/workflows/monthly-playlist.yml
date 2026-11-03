@@ -1,0 +1,39 @@
+# Campfire Radio: on the 20th, pick next month's playlist and open a pull request to review it.
+# Run it by hand (Actions -> Monthly playlist -> Run workflow) to (re)make any month.
+name: Monthly playlist
+on:
+  schedule:
+    - cron: "17 6 20 * *"
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "Month YYYY-MM (empty = next month)"
+        required: false
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  pick:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Pick songs
+        run: |
+          if [ -n "${{ inputs.month }}" ]; then M="${{ inputs.month }}"; else M=$(date -u -d "$(date -u +%Y-%m-01) +1 month" +%Y-%m); fi
+          echo "MONTH=$M" >> "$GITHUB_ENV"
+          python scripts/pick.py --month "$M"
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "campfire-radio-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          B="playlist/$MONTH"
+          git checkout -B "$B"
+          git add "months/$MONTH.txt" "months/$MONTH.md"
+          git commit -m "Playlist $MONTH" || { echo "nothing new"; exit 0; }
+          git push -f origin "$B"
+          gh pr view "$B" >/dev/null 2>&1 || gh pr create --base main --head "$B" --title "Campfire Radio playlist $MONTH" --body-file "months/$MONTH.md"

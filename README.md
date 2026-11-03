@@ -5,24 +5,44 @@ The world loads everything from here at runtime (GitHub Pages), so adding a song
 
 Base URL (after enabling Pages): `https://ladypoly.github.io/campfire-music/`
 
+## Monthly radio (automatic)
+
+Every month the jukebox gets a new playlist: **25 CC0 / public-domain songs found on the web + 5 of your own songs**,
+matching the season (December: Christmas songs, October: spooky, ... - see `seasons.json`).
+
+1. **On the 20th** the action *Monthly playlist* searches Wikimedia Commons, Openverse and the Internet Archive
+   (only the curated netlabels / Musopen collections) and opens a **pull request** with next month's list
+   (`months/YYYY-MM.txt` + an overview with listen links).
+2. **You review it**: listen, delete lines you don't like, reorder, add songs. Found something yourself? Put it in
+   `picks/YYYY-MM.txt` (see `picks/README.md`) and run the action again for that month (Actions -> Monthly playlist -> Run workflow).
+3. **Merge** the pull request. On the **1st** the action *Publish site* downloads everything, matches the loudness,
+   converts to Ogg, makes the covers and publishes `playlist.txt` + `CREDITS.md`. No world rebuild.
+
+Nothing is merged without you: automatically found songs can be odd, and no source can promise "made by humans".
+
+### One-time setup (repo settings)
+
+- **Settings -> Pages -> Source: GitHub Actions** (the site is now built by the action, not served from the branch)
+- **Settings -> Actions -> General -> Workflow permissions:** "Read and write" + tick **"Allow GitHub Actions to create and approve pull requests"**
+
 ## Structure
 
 | Path | What |
 |---|---|
-| `playlist.txt` | The song list the banner player reads (one line per song) |
-| `slides.json` | Tips / featured worlds shown on the banner while no music plays |
-| `tracks/` | Audio files (`.ogg` preferred, `.mp3` ok) |
-| `covers/` | Square cover images, one per track |
-| `slides/` | Slide images |
-| `CREDITS.md` | Artist + licence for every track (keep in sync with the playlist) |
+| `own.txt` | Your own songs (id, title, artist, months, licence) - 5 go into every month |
+| `tracks/`, `covers/` | Audio + cover of your own songs (`tracks/<id>.ogg` or `.mp3`/`.wav`, `covers/<id>.jpg`) |
+| `months/YYYY-MM.txt` | The playlist of a month (made by the action, edited by you) |
+| `picks/YYYY-MM.txt` | Your hand-picked songs for a month (optional) |
+| `seasons.json` | Search words + theme share per month, number of songs, filters |
+| `scripts/` | `pick.py` (find songs), `build.py` (build the site) |
+| `slides.json`, `slides/` | Tips / featured worlds for the banner |
+| *(built)* `playlist.txt`, `CREDITS.md` | Made by `build.py` on the site - what the world reads |
 
-## Add a song
+## Add one of your own songs
 
-1. Put the audio in `tracks/` — **file name = track id**, lower case, no spaces: `tracks/fireside-waltz.ogg`
-2. Put the cover in `covers/` with the same id: `covers/fireside-waltz.jpg`
-3. Add a line to `playlist.txt`: `id | title | artist | m:ss | licence` (put `#` in front to switch a song off)
-4. Add the credit line to `CREDITS.md`
-5. Commit to `main` — Pages updates within ~1 minute; the world picks it up on the next load
+1. `tracks/<id>.mp3` (or .ogg / .wav) and `covers/<id>.jpg` - id lower case, no spaces
+2. A line in `own.txt`: `my-song | My Song | vince_crusty | 12 | Own (Suno)` (`12` = prefer it in December; empty = all year)
+3. Commit - it goes into the next playlists (loudness + format are handled by the build)
 
 ### File specs (Quest friendly)
 
@@ -36,7 +56,7 @@ Only add music you may share publicly: your own, or Creative Commons / royalty-f
 `CC BY` / `CC BY-SA` are easiest (credit is shown on the banner). Avoid `ND`/`NC` unless you have checked it fits.
 **No** remixes / edits of commercial songs.
 
-## playlist.txt format
+## playlist.txt format (built)
 
 ```
 # comment lines start with #
@@ -48,6 +68,7 @@ when-the-world-ends | When the World Ends | vince_crusty | 3:32 | Own (Suno)
 - `length` keeps everyone in sync before the file has loaded (exact to the second is enough)
 - The order of the lines is the play order; the playlist loops.
 - Plain text on purpose: the world's visual scripting can't read JSON. (`playlist.json` is no longer used.)
+- The jukebox offers the next two songs of this list to vote on.
 
 ## Limits (GitHub Pages)
 
