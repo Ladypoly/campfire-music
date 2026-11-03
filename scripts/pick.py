@@ -2,7 +2,8 @@
 
     python scripts/pick.py --month 2026-12
 
-Looks for CC0 / public-domain MUSIC (no sound effects, talks, podcasts) in
+Looks for CC0 / public-domain / CC BY MUSIC (no sound effects, talks, podcasts) in
+  - Kevin MacLeod / incompetech (CC BY 4.0, professionally produced, preferred)
   - Wikimedia Commons  (lots of public-domain recordings, e.g. US Army / Marine Band carols)
   - Openverse          (Creative Commons search engine: Jamendo, ccMixter, Freesound, Wikimedia ...; licence cc0 / pdm)
   - Internet Archive   (only the curated 'netlabels' and 'musopen' collections - open uploads are often mislabelled)
@@ -31,7 +32,8 @@ import common as C  # noqa: E402
 
 sys.stdout.reconfigure(line_buffering=True)   # live log lines in GitHub Actions
 
-LIC_OK = {"cc0": "CC0", "pdm": "Public Domain"}
+LIC_OK = {"cc0": "CC0", "pdm": "Public Domain", "by": "CC BY"}   # CC BY: the artist is credited on the banner + CREDITS.md
+INCOMPETECH = {"list": None, "lock": threading.Lock()}
 # Wikimedia Commons is full of field recordings and speeches: a file only counts when its categories say "music"
 MUSIC_CATS = re.compile(r"music|song|band|orchestra|choir|chorus|carol|hymn|piano|guitar|violin|jazz|folk|blues|march|waltz|"
                         r"polka|symphon|concerto|sonata|quartet|ensemble|singer|vocal|instrumental|ragtime|lullab", re.I)
@@ -42,6 +44,26 @@ def nice_title(t):
     t = re.sub(r"\.(mp3|ogg|wav|flac)$", "", t or "", flags=re.I)
     t = re.sub(r"^[\s\d._-]+(?=[^\d])", "", t).replace("_", " ").strip(" -.")
     return (t[:1].upper() + t[1:]) if t else ""
+
+
+def clean_names(c):
+    """'"The Entertainer" (1902), by Scott Joplin' -> title The Entertainer, artist Scott Joplin;
+    'Loyalty Freak Music - 08 - Beach' -> Beach; long '(performer)' tails dropped"""
+    t = nice_title(c["title"])
+    m = re.match(r'^(.+?)\s*(\(\d{4}\))?,?\s+by\s+(.+)$', t)
+    if m and (not c["artist"] or c["artist"].lower() in ("unknown", "")):
+        t, c["artist"] = m.group(1), m.group(3).strip()
+    a = (c["artist"] or "").strip()
+    if a and a.lower() != "unknown" and t.lower().startswith(a.lower()):
+        t = t[len(a):].lstrip(" -_.:")
+    t = re.sub(r"^\d+\s*[-.]\s*", "", t)                                # leading track number
+    t = t.strip(" \"'\u201c\u201d")
+    if len(t) > 34:
+        t = re.sub(r"\s*\([^)]*\)\s*$", "", t)                          # '(Olga Gurevich)' etc.
+    if len(t) > 34 and " - " in t:                                       # 'Chopin - Waltz ...' / 'Danny Boy - Celtic Aire - ...'
+        parts = t.split(" - ")
+        t = " - ".join(parts[1:2]) if " " not in parts[0] else parts[0]
+    c["title"] = t.strip()
 
 
 def looks_like_code(t):
@@ -60,7 +82,7 @@ def from_openverse(term, seasonal):
         try:
             with OPENVERSE["lock"]:
                 r = C.http_get("https://api.openverse.org/v1/audio/", {
-                    "q": term, "license": "cc0,pdm", "category": "music", "page_size": 20, "page": page, "mature": "false"})
+                    "q": term, "license": "cc0,pdm,by", "category": "music", "page_size": 20, "page": page, "mature": "false"})
                 time.sleep(1.0)
         except C.RateLimited:
             print("  openverse: rate limit reached - no more Openverse searches this run")
@@ -73,8 +95,9 @@ def from_openverse(term, seasonal):
             lic = (x.get("license") or "").lower()
             if lic not in LIC_OK or not x.get("url"):
                 continue
+            lv = x.get("license_version") or ""
             out.append({"title": x.get("title") or "", "artist": x.get("creator") or "unknown",
-                        "secs": (x.get("duration") or 0) / 1000.0, "licence": LIC_OK[lic],
+                        "secs": (x.get("duration") or 0) / 1000.0, "licence": LIC_OK[lic] + (f" {lv}" if lic == "by" and lv else ""),
                         "page": x.get("foreign_landing_url") or "", "audio": x["url"], "cover": x.get("thumbnail") or "",
                         "tags": " ".join(t.get("name", "") for t in (x.get("tags") or [])),
                         "source": "openverse/" + (x.get("source") or "?"), "seasonal": seasonal, "pop": 0})
@@ -103,6 +126,8 @@ def from_commons(term, seasonal):
             licence = "CC0"
         elif lic.startswith("public domain") or lic in ("pd", "pdm"):
             licence = "Public Domain"
+        elif re.match(r"^cc[ -]by \d", lic):                          # CC BY x.x (not -SA / -NC / -ND)
+            licence = "CC BY " + lic.split()[-1]
         else:
             continue
         cats = C.clean(meta.get("Categories", {}).get("value", ""))
@@ -121,7 +146,7 @@ def from_commons(term, seasonal):
 
 def from_archive(term, seasonal, rng):
     out = []
-    q = (f'collection:(netlabels OR musopen) AND mediatype:audio AND licenseurl:(*publicdomain*) '
+    q = (f'collection:(netlabels OR musopen) AND mediatype:audio AND (licenseurl:(*publicdomain*) OR licenseurl:(*licenses/by/*)) '
          f'AND (subject:("{term}") OR title:("{term}"))')
     try:
         r = C.http_get("https://archive.org/advancedsearch.php", {
@@ -142,7 +167,8 @@ def from_archive(term, seasonal, rng):
         metas = list(ex.map(meta_of, docs))
     for doc, meta in zip(docs, metas):
         ident = doc["identifier"]
-        licence = "CC0" if "zero" in str(doc.get("licenseurl", "")) else "Public Domain"
+        lu = str(doc.get("licenseurl", ""))
+        licence = "CC0" if "zero" in lu else ("Public Domain" if "publicdomain" in lu else "CC BY " + (re.findall(r"/by/([\d.]+)", lu) or ["4.0"])[0])
         if not meta:
             continue
         files = [f for f in meta.get("files", []) if "MP3" in f.get("format", "") or f.get("format") == "Ogg Vorbis"]
@@ -163,6 +189,29 @@ def from_archive(term, seasonal, rng):
                     "audio": f"https://archive.org/download/{ident}/" + C.urllib.parse.quote(f["name"]),
                     "cover": f"https://archive.org/services/img/{ident}", "tags": f"{doc.get('title', '')} {subj}",
                     "source": "archive.org", "seasonal": seasonal, "pop": int(doc.get("downloads") or 0)})
+    return out
+
+
+def from_incompetech(term, seasonal):
+    """Kevin MacLeod's library (incompetech.com, CC BY 4.0): one JSON list, matched on title / description / feel / instruments."""
+    with INCOMPETECH["lock"]:
+        if INCOMPETECH["list"] is None:
+            try:
+                INCOMPETECH["list"] = C.http_get("https://incompetech.com/music/royalty-free/pieces.json", timeout=60)
+            except Exception as e:
+                print(f"  incompetech: {e}")
+                INCOMPETECH["list"] = []
+    out, t = [], term.lower()
+    for x in INCOMPETECH["list"]:
+        text = " ".join(str(x.get(k) or "") for k in ("title", "description", "feel", "instruments")).lower()
+        if not re.search(r"\b" + re.escape(t) + r"\b", text) or not x.get("filename"):
+            continue
+        out.append({"title": x.get("title") or "", "artist": "Kevin MacLeod", "secs": C.seconds(str(x.get("length") or "0").split(":", 1)[-1]) if str(x.get("length", "")).count(":") == 2 else C.seconds(x.get("length") or 0),
+                    "licence": "CC BY 4.0",
+                    "page": "https://incompetech.com/music/royalty-free/index.html?isrc=" + str(x.get("isrc") or ""),
+                    "audio": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/" + C.urllib.parse.quote(x["filename"]),
+                    "cover": "", "tags": f"{x.get('feel', '')} {x.get('description', '')}",
+                    "source": "incompetech", "seasonal": seasonal, "pop": 0})
     return out
 
 
@@ -193,7 +242,7 @@ def main():
     today = dt.date.today()
     nxt = (today.replace(day=1) + dt.timedelta(days=32)).replace(day=1)
     ap.add_argument("--month", default=nxt.strftime("%Y-%m"), help="YYYY-MM (default: next month)")
-    ap.add_argument("--sources", default="commons,openverse,archive")
+    ap.add_argument("--sources", default="incompetech,openverse,commons,archive")
     args = ap.parse_args()
     month = args.month
     cfg = C.load_json("seasons.json")
@@ -207,6 +256,7 @@ def main():
 
     def search(t, seasonal):
         found = []
+        if "incompetech" in srcs: found += from_incompetech(t, seasonal)
         if "commons" in srcs: found += from_commons(t, seasonal)
         if "openverse" in srcs: found += from_openverse(t, seasonal)
         if "archive" in srcs: found += from_archive(t, seasonal, random.Random(month + t))
@@ -218,7 +268,7 @@ def main():
             return [c for part in ex.map(lambda t: search(t, seasonal), terms) for c in part]
 
     def ok(c):
-        c["title"] = nice_title(c["title"])
+        clean_names(c)
         if looks_like_code(c["title"]):
             return False
         text = f"{c['title']} {c['artist']} {c['tags']}".lower()
@@ -231,7 +281,7 @@ def main():
     seasonal = [c for c in gather(mcfg["seasonal"], True) if ok(c)]
     general = [c for c in gather(cfg["general"], False) if ok(c)]
     for c in seasonal + general:   # a bit of luck + trusted sources + popularity; unknown length = slightly lower
-        c["score"] = rng.random() + {"wikimedia": 0.15, "archive.org": 0.2}.get(c["source"], 0.1) \
+        c["score"] = rng.random() + {"incompetech": 0.45, "openverse/jamendo": 0.3, "wikimedia": 0.1, "archive.org": 0.1}.get(c["source"], 0.1) \
             + 0.05 * math.log10(1 + c["pop"]) - (0.2 if not c["secs"] else 0)
 
     n_total = cfg["found_songs"]
@@ -241,7 +291,8 @@ def main():
     def take(c):
         key = C.slug(c["title"]) + "/" + C.slug(c["artist"])
         a = C.slug(c["artist"])
-        if key in seen or (a != "unknown" and per_artist.get(a, 0) >= cfg["max_per_artist"]):
+        cap = {C.slug(k): v for k, v in cfg.get("artist_caps", {}).items()}.get(a, cfg["max_per_artist"])
+        if key in seen or (a != "unknown" and per_artist.get(a, 0) >= cap):
             return False
         seen.add(key); per_artist[a] = per_artist.get(a, 0) + 1
         picked.append(c)

@@ -5,6 +5,7 @@
   "min_seconds": 90,
   "max_seconds": 420,
   "max_per_artist": 3,
+  "artist_caps": {"Kevin MacLeod": 12},
   "skip_recent_months": 3,
   "general": ["acoustic guitar", "folk", "campfire", "chill", "piano", "lofi", "indie", "jazz", "world music", "celtic", "bluegrass", "singer songwriter", "instrumental", "swing", "waltz", "blues"],
   "exclude_words": ["sermon", "podcast", "episode", "interview", "lecture", "church service", "audiobook", "chapter", "radio show", "sound effect", "sfx", "ringtone", "karaoke", "soundtrack", "pronunciation", "spoken", "reading", "speech", "news", "test tone", "sample pack", "loop pack", "midi", "commercial", "remarks", "proclamation", "ceremony", "address", "president", "dpla", "field recording", "ambience", "ambient sound", "rain", "thunder", "storm", "wind", "birds", "birdsong", "nature sound", "footsteps", "noise", "harsh", "drone", "glitch", "industrial", "experimental", "freesound"],
