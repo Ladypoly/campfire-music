@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "updated": "2026-11-03",
+  "baseUrl": "https://ladypoly.github.io/campfire-music/",
+  "intervalSeconds": 12,
+  "slides": [
+    {
+      "id": "tip-marshmallow",
+      "type": "tip",
+      "title": "Marshmallow time",
+      "text": "Grab a stick at the marshmallow station and hold it over the fire - not too long!",
+      "image": null,
+      "enabled": true
+    },
+    {
+      "id": "tip-music-logs",
+      "type": "tip",
+      "title": "Play the logs",
+      "text": "Pick up a mallet and hit the painted logs - everyone hears your song.",
+      "image": null,
+      "enabled": true
+    },
+    {
+      "id": "tip-zipline",
+      "type": "tip",
+      "title": "Take the zipline",
+      "text": "Climb up to the platform and grab the zipline handle for a ride over the island.",
+      "image": null,
+      "enabled": true
+    },
+    {
+      "id": "tip-moon",
+      "type": "tip",
+      "title": "Look at the moon",
+      "text": "Aim the telescope at the moon and keep it in the crosshair...",
+      "image": null,
+      "enabled": true
+    },
+    {
+      "id": "featured-example",
+      "type": "world",
+      "title": "Featured world",
+      "text": "Short description of a world worth visiting.",
+      "image": "slides/featured-example.jpg",
+      "url": "https://example.worldspace.host",
+      "enabled": false
+    }
+  ]
+}

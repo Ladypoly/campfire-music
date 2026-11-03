@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "updated": "2026-11-03",
+  "baseUrl": "https://ladypoly.github.io/campfire-music/",
+  "tracks": [
+    {
+      "id": "when-the-world-ends",
+      "title": "When the World Ends",
+      "artist": "vince_crusty",
+      "file": "tracks/when-the-world-ends.ogg",
+      "cover": "covers/when-the-world-ends.jpg",
+      "duration": 212.0,
+      "license": "Own (Suno) - vince_crusty",
+      "source": "made with Suno",
+      "enabled": true
+    },
+    {
+      "id": "midsummer-stone-spiral",
+      "title": "Midsummer Stone Spiral",
+      "artist": "vince_crusty",
+      "file": "tracks/midsummer-stone-spiral.ogg",
+      "cover": "covers/midsummer-stone-spiral.jpg",
+      "duration": 194.6,
+      "license": "Own (Suno) - vince_crusty",
+      "source": "made with Suno",
+      "enabled": true
+    },
+    {
+      "id": "drop-it-now",
+      "title": "Drop it Now",
+      "artist": "vince_crusty",
+      "file": "tracks/drop-it-now.ogg",
+      "cover": "covers/drop-it-now.jpg",
+      "duration": 193.12,
+      "license": "Own (Suno) - vince_crusty",
+      "source": "made with Suno",
+      "enabled": true
+    }
+  ]
+}
